@@ -32,6 +32,10 @@ export class Hover {
           if (annotation["https://json-schema.org/keyword/title"]) {
             lines.push(`**${annotation["https://json-schema.org/keyword/title"] as string}**`);
           }
+          const deprecationMessage = annotation["https://json-schema.org/keyword/unknown#deprecationMessage"] as string | undefined;
+          if (deprecationMessage) {
+            lines.push(`⚠️ **Deprecated:** ${deprecationMessage}`);
+          }
           if (annotation["https://json-schema.org/keyword/description"]) {
             lines.push(`${annotation["https://json-schema.org/keyword/description"] as string}`);
           }

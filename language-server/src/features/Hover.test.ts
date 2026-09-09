@@ -453,4 +453,174 @@ _hyperjump-json-language-server_`
 
     expect(result).toEqual(null);
   });
+
+  test("should display deprecationMessage in hover content when present", async () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "oldField": {
+          "deprecationMessage": "Use 'newField' instead.",
+          "type": "string"
+        }
+      }
+    }`);
+
+    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "oldField": "value"\n}`;
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `⚠️ **Deprecated:** Use 'newField' instead.
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
+
+  test("should display deprecationMessage alongside title and description", async () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "legacy": {
+          "title": "Legacy Property",
+          "deprecationMessage": "This field will be removed in v2.",
+          "description": "Historical property details.",
+          "type": "string"
+        }
+      }
+    }`);
+
+    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "legacy": "old"\n}`;
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 14 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `**Legacy Property**
+
+⚠️ **Deprecated:** This field will be removed in v2.
+
+Historical property details.
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
+
+  test("should display deprecation notice when hovering over the property key", async () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "retired": {
+          "deprecationMessage": "Retired field.",
+          "type": "number"
+        }
+      }
+    }`);
+
+    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "retired": 42\n}`;
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 4 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `⚠️ **Deprecated:** Retired field.
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
+
+  test("should support deprecationMessage in draft-07 schemas", async () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "obsolete": {
+          "deprecationMessage": "Obsolete in draft-07.",
+          "type": "boolean"
+        }
+      }
+    }`);
+
+    const instanceText = `{\n  "$schema": "${fixtureSchemaUri}",\n  "obsolete": true\n}`;
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    const result = await client.sendRequest(HoverRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 4 }
+    });
+
+    expect(result).toEqual({
+      contents: {
+        kind: "markdown",
+        value: `⚠️ **Deprecated:** Obsolete in draft-07.
+
+---
+
+_hyperjump-json-language-server_`
+      }
+    });
+  });
 });

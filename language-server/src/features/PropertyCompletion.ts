@@ -1,4 +1,4 @@
-import { CompletionItemKind } from "vscode-languageserver";
+import { CompletionItemKind, CompletionItemTag } from "vscode-languageserver";
 
 import type { JsonDocument } from "../models/JsonDocument.ts";
 import type { CompletionsProvider } from "./Completion.ts";
@@ -26,7 +26,7 @@ export class PropertyCompletion implements CompletionsProvider {
 
     const completionItems: CompletionItem[] = [];
     for (const propertyName of propertyNames) {
-      completionItems.push({
+      const item: CompletionItem = {
         label: propertyName,
         kind: CompletionItemKind.Property,
         filterText: JSON.stringify(propertyName),
@@ -38,7 +38,15 @@ export class PropertyCompletion implements CompletionsProvider {
           newText: `"${propertyName}": `
         },
         command: { title: "Suggest", command: "editor.action.triggerSuggest" }
-      });
+      };
+
+      const valueInfo = await jsonDocument.getPropertyValueInfo(objectNode, propertyName);
+      if (valueInfo?.deprecationMessage) {
+        item.tags = [CompletionItemTag.Deprecated];
+        item.documentation = valueInfo.deprecationMessage;
+      }
+
+      completionItems.push(item);
     }
     return completionItems;
   }

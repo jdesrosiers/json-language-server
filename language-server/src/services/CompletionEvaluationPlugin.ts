@@ -12,6 +12,7 @@ export type PropertyValueInfo = {
   excluded?: Set<string>;
   excludedTypes?: Set<string>;
   permitsAnyValue?: boolean;
+  deprecationMessage?: string;
 };
 
 type CompletionContext = ValidationContext & {
@@ -287,16 +288,17 @@ const intersectValueInfo = (first: PropertyValueInfo, second: PropertyValueInfo)
     const: bothHaveConst ? (constsMatch ? first.const : undefined) : (first.const ?? second.const),
     excluded: (first.excluded ?? second.excluded) ? unique(first.excluded, second.excluded) : undefined,
     excludedTypes: (first.excludedTypes ?? second.excludedTypes) ? unique(first.excludedTypes, second.excludedTypes) : undefined,
-    permitsAnyValue: (isOpen(first) && isOpen(second)) || undefined
+    permitsAnyValue: (isOpen(first) && isOpen(second)) || undefined,
+    deprecationMessage: first.deprecationMessage ?? second.deprecationMessage
   });
 };
 
 const unionValueInfo = (first: PropertyValueInfo, second: PropertyValueInfo): PropertyValueInfo => {
   if (isUnconstrained(first)) {
-    return { ...second, type: undefined, excluded: undefined, excludedTypes: undefined, permitsAnyValue: true };
+    return { ...second, type: undefined, excluded: undefined, excludedTypes: undefined, permitsAnyValue: true, deprecationMessage: first.deprecationMessage ?? second.deprecationMessage };
   }
   if (isUnconstrained(second)) {
-    return { ...first, type: undefined, excluded: undefined, excludedTypes: undefined, permitsAnyValue: true };
+    return { ...first, type: undefined, excluded: undefined, excludedTypes: undefined, permitsAnyValue: true, deprecationMessage: first.deprecationMessage ?? second.deprecationMessage };
   }
 
   let type: Set<string> | undefined;
@@ -336,7 +338,7 @@ const unionValueInfo = (first: PropertyValueInfo, second: PropertyValueInfo): Pr
     enumValues = without(enumValues, excluded);
   }
 
-  return { type, enum: enumValues, excluded, excludedTypes, permitsAnyValue: namesTypeAndValues || undefined };
+  return { type, enum: enumValues, excluded, excludedTypes, permitsAnyValue: namesTypeAndValues || undefined, deprecationMessage: first.deprecationMessage ?? second.deprecationMessage };
 };
 
 const exactlyOneValueInfo = (infos: PropertyValueInfo[]): PropertyValueInfo => {
@@ -408,6 +410,8 @@ const resolveValueInfo = (ast: Record<string, unknown> | undefined, schemaUri: s
         info.enum = new Set(keywordValue as string[]);
       } else if (keywordId === "https://json-schema.org/keyword/const") {
         info.const = keywordValue as string;
+      } else if (keywordId === "https://json-schema.org/keyword/unknown#deprecationMessage") {
+        info.deprecationMessage = (keywordValue as [string, string])[1];
       } else if (keywordId === "https://json-schema.org/keyword/not") {
         ({ excluded: info.excluded, excludedTypes: info.excludedTypes } = resolveNegation(ast, keywordValue as string));
       } else if (keywordId === "https://json-schema.org/keyword/allOf") {

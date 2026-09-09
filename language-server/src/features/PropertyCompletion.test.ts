@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
-import { CompletionRequest, CompletionItemKind, PublishDiagnosticsNotification } from "vscode-languageserver";
+import { CompletionRequest, CompletionItemKind, CompletionItemTag, PublishDiagnosticsNotification } from "vscode-languageserver";
 import { TestClient } from "../test/TestClient.ts";
 
 describe("Property completions", () => {
@@ -1593,6 +1593,68 @@ describe("Property completions", () => {
         textEdit: {
           range: { start: { line: 3, character: 6 }, end: { line: 3, character: 8 } },
           newText: `"c": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      }
+    ]);
+  });
+
+  test("completion marks property as deprecated and adds documentation when deprecationMessage is present", async () => {
+    const diagnostics: Promise<void> = new Promise((resolve) => {
+      client.onNotification(PublishDiagnosticsNotification.type, () => {
+        resolve();
+      });
+    });
+
+    fixtureSchemaUri = await client.writeDocument("schema.json", `{
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "oldProp": {
+          "type": "string",
+          "deprecationMessage": "Use newProp instead."
+        },
+        "newProp": {
+          "type": "string"
+        }
+      }
+    }`);
+
+    const instanceText = `{
+      "$schema": "${fixtureSchemaUri}",
+      ""
+    }`;
+
+    await client.writeDocument("instance.json", instanceText);
+    const uri = await client.openDocument("instance.json");
+
+    await diagnostics;
+
+    const completions = await client.sendRequest(CompletionRequest.type, {
+      textDocument: { uri },
+      position: { line: 2, character: 7 }
+    });
+
+    expect(completions).toEqual([
+      {
+        label: "oldProp",
+        kind: CompletionItemKind.Property,
+        tags: [CompletionItemTag.Deprecated],
+        documentation: "Use newProp instead.",
+        filterText: `"oldProp"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"oldProp": `
+        },
+        command: { title: "Suggest", command: "editor.action.triggerSuggest" }
+      },
+      {
+        label: "newProp",
+        kind: CompletionItemKind.Property,
+        filterText: `"newProp"`,
+        textEdit: {
+          range: { start: { line: 2, character: 6 }, end: { line: 2, character: 8 } },
+          newText: `"newProp": `
         },
         command: { title: "Suggest", command: "editor.action.triggerSuggest" }
       }
